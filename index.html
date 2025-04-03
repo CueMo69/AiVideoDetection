@@ -7,73 +7,120 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
-        body { text-align: center; font-family: Arial, sans-serif; }
-        video, canvas { width: 640px; height: 480px; border: 2px solid black; }
-        button { margin-top: 10px; padding: 10px; font-size: 16px; cursor: pointer; }
+        body {
+            background-color: #000;
+            color: #FFDD00;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        #videoElement {
+            border: 5px solid #FFDD00;
+            border-radius: 10px;
+        }
+
+        #flipButton {
+            background-color: #FFDD00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        #flipButton:hover {
+            background-color: #FFBB00;
+        }
+
+        .bounding-box {
+            position: absolute;
+            border: 2px solid red;
+            color: red;
+            padding: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>AI Video Detection</h1>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
-    <br>
-    <button id="flip">Flip Camera</button>
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const flipButton = document.getElementById('flip');
-        let useRearCamera = true;
-        let model;
+    <video id="videoElement" width="640" height="480" autoplay></video>
+    <button id="flipButton">Flip Camera</button>
 
-        async function setupCamera() {
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
+    <script>
+        let isFront = false; // Start with the rear camera
+        const videoElement = document.getElementById('videoElement');
+        const flipButton = document.getElementById('flipButton');
+
+        // Load the model
+        let model;
+        cocoSsd.load().then(loadedModel => {
+            model = loadedModel;
+            startVideo();
+        });
+
+        async function startVideo() {
             const constraints = {
-                video: { facingMode: useRearCamera ? "environment" : "user" }
+                video: {
+                    facingMode: isFront ? 'user' : 'environment'
+                }
             };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
-            return new Promise(resolve => {
-                video.onloadedmetadata = () => resolve(video);
-            });
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                detectObjects();
+            } catch (err) {
+                console.error('Error accessing camera: ', err);
+            }
         }
 
         async function detectObjects() {
-            model = await cocoSsd.load();
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            const predictions = await model.detect(videoElement);
 
-            async function frame() {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const predictions = await model.detect(video);
-                
-                predictions.forEach(pred => {
-                    ctx.beginPath();
-                    ctx.rect(...pred.bbox);
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = 'red';
-                    ctx.fillStyle = 'red';
-                    ctx.stroke();
-                    ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] > 10 ? pred.bbox[1] - 5 : 10);
-                });
-                requestAnimationFrame(frame);
-            }
-            frame();
+            // Clear previous detections
+            const boxes = document.querySelectorAll('.bounding-box');
+            boxes.forEach(box => box.remove());
+
+            // Draw new bounding boxes
+            predictions.forEach(prediction => {
+                const [x, y, width, height] = prediction.bbox;
+                const box = document.createElement('div');
+                box.classList.add('bounding-box');
+                box.style.left = `${x}px`;
+                box.style.top = `${y}px`;
+                box.style.width = `${width}px`;
+                box.style.height = `${height}px`;
+
+                const label = document.createElement('span');
+                label.textContent = prediction.class;
+                label.style.position = 'absolute';
+                label.style.color = 'red';
+                label.style.top = `${y + height + 5}px`;
+                box.appendChild(label);
+
+                document.body.appendChild(box);
+            });
+
+            // Repeat detection
+            requestAnimationFrame(detectObjects);
         }
 
         flipButton.addEventListener('click', () => {
-            useRearCamera = !useRearCamera;
-            setupCamera().then(() => {
-                video.play();
-                detectObjects();
-            });
-        });
-
-        setupCamera().then(() => {
-            video.play();
-            detectObjects();
+            isFront = !isFront;
+            startVideo(); // Restart the video with the flipped camera
         });
     </script>
 </body>
