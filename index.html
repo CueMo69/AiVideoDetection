@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        video, canvas { width: 640px; height: 480px; border: 2px solid black; }
+    </style>
+</head>
+<body>
+    <h1>AI Video Detection</h1>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise(resolve => {
+                video.onloadedmetadata = () => resolve(video);
+            });
+        }
+
+        async function detectObjects() {
+            const model = await cocoSsd.load();
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            async function frame() {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const predictions = await model.detect(video);
+
+                predictions.forEach(pred => {
+                    ctx.beginPath();
+                    ctx.rect(...pred.bbox);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'red';
+                    ctx.fillStyle = 'red';
+                    ctx.stroke();
+                    ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] > 10 ? pred.bbox[1] - 5 : 10);
+                });
+                requestAnimationFrame(frame);
+            }
+            frame();
+        }
+
+        setupCamera().then(() => {
+            video.play();
+            detectObjects();
+        });
+    </script>
+</body>
+</html>
