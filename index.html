@@ -9,19 +9,31 @@
     <style>
         body { text-align: center; font-family: Arial, sans-serif; }
         video, canvas { width: 640px; height: 480px; border: 2px solid black; }
+        button { margin-top: 10px; padding: 10px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
     <h1>AI Video Detection</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
+    <br>
+    <button id="flip">Flip Camera</button>
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const flipButton = document.getElementById('flip');
+        let useRearCamera = true;
+        let model;
 
         async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            const constraints = {
+                video: { facingMode: useRearCamera ? "environment" : "user" }
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
             return new Promise(resolve => {
                 video.onloadedmetadata = () => resolve(video);
@@ -29,14 +41,14 @@
         }
 
         async function detectObjects() {
-            const model = await cocoSsd.load();
+            model = await cocoSsd.load();
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
             async function frame() {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const predictions = await model.detect(video);
-
+                
                 predictions.forEach(pred => {
                     ctx.beginPath();
                     ctx.rect(...pred.bbox);
@@ -50,6 +62,14 @@
             }
             frame();
         }
+
+        flipButton.addEventListener('click', () => {
+            useRearCamera = !useRearCamera;
+            setupCamera().then(() => {
+                video.play();
+                detectObjects();
+            });
+        });
 
         setupCamera().then(() => {
             video.play();
