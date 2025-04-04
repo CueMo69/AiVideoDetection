@@ -44,19 +44,23 @@
         const filterSelect = document.getElementById('filterSelect');
         let model;
         let detect = true;
-        let isFlipped = false;
+        let isFrontCamera = true;
+        let stream;
 
         toggleButton.addEventListener('click', () => {
             detect = !detect;
             toggleButton.innerText = detect ? 'Stop Detection' : 'Start Detection';
-            if (detect) {
+            if (!detect) {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                output.innerHTML = '';
+            } else {
                 detectFrame(video, model);
             }
         });
 
         flipButton.addEventListener('click', () => {
-            isFlipped = !isFlipped;
-            video.classList.toggle('flip');
+            isFrontCamera = !isFrontCamera;
+            startVideoStream();
         });
 
         snapshotButton.addEventListener('click', () => {
@@ -75,21 +79,30 @@
         // Load the COCO-SSD model
         cocoSsd.load().then(loadedModel => {
             model = loadedModel;
-            // Start the video stream
+            startVideoStream();
+        });
+
+        function startVideoStream() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
             navigator.mediaDevices.getUserMedia({
-                video: true
-            }).then(stream => {
+                video: { facingMode: isFrontCamera ? 'user' : 'environment' }
+            }).then(newStream => {
+                stream = newStream;
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    detectFrame(video, model);
+                    if (detect) {
+                        detectFrame(video, model);
+                    }
                 };
             }).catch(error => {
                 console.error("Error accessing webcam:", error);
             });
-        });
+        }
 
         // Detect objects in the video frame
         function detectFrame(video, model) {
