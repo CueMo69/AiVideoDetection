@@ -4,124 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Video Detection</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
         body {
-            background-color: #000;
-            color: #FFDD00;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
+            text-align: center;
         }
-
-        h1 {
-            font-size: 2rem;
-            margin-bottom: 20px;
+        #video {
+            width: 80%;
+            border: 2px solid black;
         }
-
-        #videoElement {
-            border: 5px solid #FFDD00;
-            border-radius: 10px;
-        }
-
-        #flipButton {
-            background-color: #FFDD00;
-            color: #000;
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
+        #output {
             margin-top: 20px;
-            border-radius: 5px;
-        }
-
-        #flipButton:hover {
-            background-color: #FFBB00;
-        }
-
-        .bounding-box {
-            position: absolute;
-            border: 2px solid red;
-            color: red;
-            padding: 5px;
-            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <h1>AI Video Detection</h1>
-    <video id="videoElement" width="640" height="480" autoplay></video>
-    <button id="flipButton">Flip Camera</button>
-
+    <video id="video" autoplay></video>
+    <div id="output"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <script>
-        let isFront = false; // Start with the rear camera
-        const videoElement = document.getElementById('videoElement');
-        const flipButton = document.getElementById('flipButton');
+        const video = document.getElementById('video');
 
-        // Load the model
-        let model;
-        cocoSsd.load().then(loadedModel => {
-            model = loadedModel;
-            startVideo();
-        });
-
-        async function startVideo() {
-            const constraints = {
-                video: {
-                    facingMode: isFront ? 'user' : 'environment'
-                }
-            };
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                videoElement.srcObject = stream;
-                detectObjects();
-            } catch (err) {
-                console.error('Error accessing camera: ', err);
-            }
-        }
-
-        async function detectObjects() {
-            const predictions = await model.detect(videoElement);
-
-            // Clear previous detections
-            const boxes = document.querySelectorAll('.bounding-box');
-            boxes.forEach(box => box.remove());
-
-            // Draw new bounding boxes
-            predictions.forEach(prediction => {
-                const [x, y, width, height] = prediction.bbox;
-                const box = document.createElement('div');
-                box.classList.add('bounding-box');
-                box.style.left = `${x}px`;
-                box.style.top = `${y}px`;
-                box.style.width = `${width}px`;
-                box.style.height = `${height}px`;
-
-                const label = document.createElement('span');
-                label.textContent = prediction.class;
-                label.style.position = 'absolute';
-                label.style.color = 'red';
-                label.style.top = `${y + height + 5}px`;
-                box.appendChild(label);
-
-                document.body.appendChild(box);
+        // Load the COCO-SSD model
+        cocoSsd.load().then(model => {
+            // Start the video stream
+            navigator.mediaDevices.getUserMedia({
+                video: true
+            }).then(stream => {
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    detectFrame(video, model);
+                };
+            }).catch(error => {
+                console.error("Error accessing webcam:", error);
             });
+        });
 
-            // Repeat detection
-            requestAnimationFrame(detectObjects);
+        // Detect objects in the video frame
+        function detectFrame(video, model) {
+            model.detect(video).then(predictions => {
+                renderPredictions(predictions);
+                requestAnimationFrame(() => {
+                    detectFrame(video, model);
+                });
+            });
         }
 
-        flipButton.addEventListener('click', () => {
-            isFront = !isFront;
-            startVideo(); // Restart the video with the flipped camera
-        });
+        // Render the predictions on the video feed
+        function renderPredictions(predictions) {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+            predictions.forEach(prediction => {
+                const p = document.createElement('p');
+                p.innerText = `${prediction.class} - ${Math.round(prediction.score * 100)}%`;
+                output.appendChild(p);
+            });
+        }
     </script>
 </body>
 </html>
