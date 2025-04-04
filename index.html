@@ -6,28 +6,102 @@
     <title>AI Video Detection</title>
     <style>
         body {
+            font-family: Arial, sans-serif;
             text-align: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 0;
+        }
+        h1 {
+            margin: 0;
+        }
+        #container {
+            position: relative;
+            display: inline-block;
         }
         #video {
             width: 80%;
             border: 2px solid black;
         }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
         #output {
             margin-top: 20px;
+        }
+        #spinner {
+            display: none;
+            margin-top: 20px;
+        }
+        .footer {
+            background-color: #333;
+            color: white;
+            padding: 10px 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            border: none;
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
-    <h1>AI Video Detection</h1>
-    <video id="video" autoplay></video>
+    <header>
+        <h1>AI Video Detection</h1>
+    </header>
+    <div id="container">
+        <video id="video" autoplay></video>
+        <canvas id="canvas"></canvas>
+    </div>
     <div id="output"></div>
+    <div id="spinner">
+        <img src="spinner.gif" alt="Loading...">
+    </div>
+    <button id="toggleButton">Stop Detection</button>
+    <div class="footer">
+        <p>Powered by TensorFlow.js and COCO-SSD | Created by CueMo69</p>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <script>
         const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const output = document.getElementById('output');
+        const spinner = document.getElementById('spinner');
+        const toggleButton = document.getElementById('toggleButton');
+        let model;
+        let detect = true;
+
+        toggleButton.addEventListener('click', () => {
+            detect = !detect;
+            toggleButton.innerText = detect ? 'Stop Detection' : 'Start Detection';
+            if (detect) {
+                detectFrame(video, model);
+            }
+        });
 
         // Load the COCO-SSD model
-        cocoSsd.load().then(model => {
+        cocoSsd.load().then(loadedModel => {
+            model = loadedModel;
             // Start the video stream
             navigator.mediaDevices.getUserMedia({
                 video: true
@@ -35,6 +109,8 @@
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
                     video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
                     detectFrame(video, model);
                 };
             }).catch(error => {
@@ -44,19 +120,35 @@
 
         // Detect objects in the video frame
         function detectFrame(video, model) {
-            model.detect(video).then(predictions => {
-                renderPredictions(predictions);
-                requestAnimationFrame(() => {
-                    detectFrame(video, model);
+            if (detect) {
+                model.detect(video).then(predictions => {
+                    renderPredictions(predictions);
+                    requestAnimationFrame(() => {
+                        detectFrame(video, model);
+                    });
                 });
-            });
+            }
         }
 
         // Render the predictions on the video feed
         function renderPredictions(predictions) {
-            const output = document.getElementById('output');
+            context.clearRect(0, 0, canvas.width, canvas.height);
             output.innerHTML = '';
             predictions.forEach(prediction => {
+                // Draw bounding box
+                context.beginPath();
+                context.rect(...prediction.bbox);
+                context.lineWidth = 2;
+                context.strokeStyle = 'red';
+                context.fillStyle = 'red';
+                context.stroke();
+                context.fillText(
+                    `${prediction.class} - ${Math.round(prediction.score * 100)}%`,
+                    prediction.bbox[0],
+                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+                );
+                context.fill();
+                // Display prediction
                 const p = document.createElement('p');
                 p.innerText = `${prediction.class} - ${Math.round(prediction.score * 100)}%`;
                 output.appendChild(p);
