@@ -20,6 +20,13 @@
     </div>
     <button id="toggleButton">Stop Detection</button>
     <button id="flipButton">Flip Camera</button>
+    <button id="snapshotButton">Take Snapshot</button>
+    <select id="filterSelect">
+        <option value="none">No Filter</option>
+        <option value="grayscale">Grayscale</option>
+        <option value="sepia">Sepia</option>
+        <option value="invert">Invert</option>
+    </select>
     <div class="footer">
         <p>Powered by TensorFlow.js and COCO-SSD | Created by CueMo69</p>
     </div>
@@ -33,6 +40,8 @@
         const spinner = document.getElementById('spinner');
         const toggleButton = document.getElementById('toggleButton');
         const flipButton = document.getElementById('flipButton');
+        const snapshotButton = document.getElementById('snapshotButton');
+        const filterSelect = document.getElementById('filterSelect');
         let model;
         let detect = true;
         let isFlipped = false;
@@ -48,6 +57,19 @@
         flipButton.addEventListener('click', () => {
             isFlipped = !isFlipped;
             video.classList.toggle('flip');
+        });
+
+        snapshotButton.addEventListener('click', () => {
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'snapshot.png';
+            link.click();
+        });
+
+        filterSelect.addEventListener('change', (event) => {
+            video.style.filter = event.target.value;
         });
 
         // Load the COCO-SSD model
